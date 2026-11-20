@@ -57,7 +57,7 @@ export function sheetHtml({ doc, s, type, qrUrl }) {
 
     <table class="items">
       <thead><tr>
-        <th class="c" style="width:7%">No</th><th>Deskripsi</th><th class="c" style="width:11%">Qty</th>
+        <th class="c" style="width:7%">No</th><th>Nama Barang</th><th class="c" style="width:11%">Qty</th>
         <th class="r" style="width:16%">Harga (Rp)</th>${showDisc ? '<th class="c" style="width:9%">Disc</th>' : ''}
         <th class="r" style="width:17%">Total (Rp)</th></tr></thead>
       <tbody>
