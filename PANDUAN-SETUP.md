@@ -39,7 +39,8 @@ Settings → Secrets and variables → Actions → tambah `SUPABASE_URL` dan `SU
 2. Login dengan email & password dari langkah 3.
 3. Menu **Pengaturan**: isi nama perusahaan, alamat, telepon, logo, rekening bank, syarat & ketentuan, penandatangan → **Simpan**.
 4. **+ Penawaran** / **+ Invoice** → isi → **Simpan** atau **Simpan & Cetak**.
-5. Di halaman cetak klik **Cetak / Simpan PDF**, pilih **A4** dan matikan *Headers and footers*.
+5. Klik **Download PDF** (di halaman cetak, atau tombol **PDF** di dashboard) untuk langsung mengunduh file PDF.
+   Tombol **Cetak** tetap tersedia: pilih **A4** dan matikan *Headers and footers*.
 
 ## 7. Pasang sebagai aplikasi (Android, komputer, iPhone)
 Aplikasi ini PWA: bisa dipasang, punya ikon sendiri, dan terbuka tanpa address bar.

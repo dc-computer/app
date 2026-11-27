@@ -3,7 +3,7 @@
 Aplikasi web statis (PWA) untuk membuat, mengedit ulang, dan mencetak **Penawaran Harga** dan **Invoice**.
 Berjalan di **GitHub Pages** (tanpa server), database di **Supabase**, mengikuti pola HDT POS.
 
-- Dashboard riwayat dokumen: cari, filter, ubah status, Cetak/PDF, Edit ulang, Hapus, "Jadikan Invoice"
+- Dashboard riwayat dokumen: cari, filter, ubah status, Download PDF, Cetak, Edit ulang, Hapus, "Jadikan Invoice"
 - Form dinamis: tambah/hapus baris item (deskripsi + spesifikasi, qty, satuan, harga, diskon %), subtotal/PPN/total otomatis
 - Pengaturan: kop surat (nama, logo, alamat, telepon), rekening bank, syarat & ketentuan standar, penomoran
 - Cetak A4 siap kirim: kop, klien, nomor, tabel item, terbilang, rekening, S&K, area tanda tangan

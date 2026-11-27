@@ -1,6 +1,7 @@
 import * as api from '../api.js';
 import { sheetHtml, verifyUrl } from '../sheet.js';
 import { CONFIG } from '../config.js';
+import { downloadPdf } from '../pdf.js';
 
 export async function render(root, { type, id }) {
   root.innerHTML = '<p class="muted">Memuat...</p>';
@@ -19,11 +20,13 @@ export async function render(root, { type, id }) {
   <div class="toolbar no-print">
     <a href="#/dashboard">&larr; Dashboard</a>
     <a href="#/edit/${type}/${id}">Edit</a>
-    <button class="btn primary sm" id="prn">Cetak / Simpan PDF</button>
-    <span class="hint">Di dialog cetak pilih A4 dan matikan "Headers and footers".</span>
+    <button class="btn primary sm" id="dl">Download PDF</button>
+    <button class="btn outline sm" id="prn">Cetak</button>
+    <span class="hint">Untuk cetak: pilih A4 dan matikan "Headers and footers".</span>
   </div>
   ${qrWarn ? `<div class="alert err no-print">Kunci Supabase Anda terlalu panjang untuk dimuat di QR, jadi QR ini baru bisa dibuka di perangkat yang sudah terhubung. Pakai kunci <b>publishable</b> (lebih pendek) atau tanamkan alamat Supabase lewat GitHub Secrets (lihat PANDUAN-SETUP).</div>` : ''}
   ${sheetHtml({ doc, s, type, qrUrl })}`;
 
+  root.querySelector('#dl').addEventListener('click', (e) => downloadPdf(type, id, e.currentTarget));
   root.querySelector('#prn').addEventListener('click', () => window.print());
 }

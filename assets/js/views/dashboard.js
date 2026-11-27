@@ -1,5 +1,6 @@
 import * as api from '../api.js';
 import { esc, rupiah, tglIndo, toast } from '../util.js';
+import { downloadPdf } from '../pdf.js';
 
 const BADGE = { pending: 'warn', approved: 'ok', rejected: 'bad', draft: 'gray', sent: 'info', paid: 'ok' };
 
@@ -67,7 +68,8 @@ export async function render(root) {
           ${Object.entries(c.statuses).map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${l}</option>`).join('')}
         </select></td>
         <td class="r nowrap actions">
-          <a class="btn sm outline" href="#/print/${r.type}/${r.id}" title="Cetak / PDF">Cetak</a>
+          <button class="btn sm primary" data-act="pdf" title="Download file PDF">PDF</button>
+          <a class="btn sm outline" href="#/print/${r.type}/${r.id}" title="Lihat / cetak">Cetak</a>
           <a class="btn sm outline" href="#/edit/${r.type}/${r.id}" title="Edit ulang">Edit</a>
           ${r.type === 'quotation' ? '<button class="btn sm outline ok" data-act="convert" title="Jadikan Invoice">→ Invoice</button>' : ''}
           <button class="btn sm outline bad" data-act="delete" title="Hapus">Hapus</button>
@@ -86,6 +88,7 @@ export async function render(root) {
     const tr = btn.closest('tr');
     const { type, id } = tr.dataset;
     const row = all.find((r) => r.type === type && String(r.id) === id);
+    if (btn.dataset.act === 'pdf') { await downloadPdf(type, id, btn); return; }
     try {
       if (btn.dataset.act === 'delete') {
         if (!confirm(`Hapus ${api.TYPES[type].label} ${row.number}? Tindakan ini tidak dapat dibatalkan.`)) return;
