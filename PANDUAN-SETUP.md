@@ -41,6 +41,7 @@ Settings → Secrets and variables → Actions → tambah `SUPABASE_URL` dan `SU
 4. **+ Penawaran** / **+ Invoice** → isi → **Simpan** atau **Simpan & Cetak**.
 5. Klik **Download PDF** (di halaman cetak, atau tombol **PDF** di dashboard) untuk langsung mengunduh file PDF.
    Tombol **Cetak** tetap tersedia: pilih **A4** dan matikan *Headers and footers*.
+   Invoice memakai desain tersendiri; kotak materai muncul bila total Rp5.000.000 ke atas, dan Syarat & Ketentuan tampil di Remark.
 
 ## 7. Pasang sebagai aplikasi (Android, komputer, iPhone)
 Aplikasi ini PWA: bisa dipasang, punya ikon sendiri, dan terbuka tanpa address bar.

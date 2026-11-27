@@ -1,7 +1,7 @@
 // Unduh penawaran/invoice langsung sebagai file PDF (tanpa dialog cetak).
 // Teks dan QR digambar sebagai vektor memakai pdf-lib (assets/lib), tata letaknya mengikuti lembar cetak di sheet.js.
 import * as api from './api.js';
-import { verifyUrl } from './sheet.js';
+import { verifyUrl, paymentTerm, inWords, MATERAI_MIN, FOOT_NOTE, invoiceTerms } from './sheet.js';
 import { qrMatrix } from './qr.js';
 import { rupiah, qtyFmt, tglIndo, terbilang, num, toast } from './util.js';
 
@@ -48,7 +48,6 @@ async function embedLogo(pdf, data) {
 export async function buildPdf({ doc, s, type, qrUrl }) {
   const { PDFDocument, StandardFonts, rgb } = await loadLib();
   const c = api.TYPES[type];
-  const isInv = type === 'invoice';
   const pdf = await PDFDocument.create();
   pdf.setTitle(`${c.label} ${doc.number}`);
   pdf.setAuthor(s.company_name || '');
@@ -132,6 +131,256 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
   }
   const label = (t, x, top) => text(t.toUpperCase(), x, top, { font: B, size: 8, color: gray(0.33) });
 
+  /** QR verifikasi 26 mm dengan keterangan di bawahnya (keterangan dipusatkan pada area capX..capX+capW). */
+  function drawQr(qx, qy, capX, capW) {
+    const m = qrMatrix(qrUrl);
+    const side = 26 * MM;
+    const quiet = 2;
+    const unit = side / (m.length + quiet * 2);
+    box(qx, qy, side, side, { color: rgb(1, 1, 1) });
+    m.forEach((row, r) => {
+      // gabungkan modul gelap yang bersebelahan agar tidak muncul garis halus
+      for (let i = 0; i < row.length; i++) {
+        if (!row[i]) continue;
+        let j = i;
+        while (j + 1 < row.length && row[j + 1]) j++;
+        box(qx + (i + quiet) * unit, qy + (r + quiet) * unit, (j - i + 1) * unit, unit + 0.02, { color: rgb(0, 0, 0) });
+        i = j;
+      }
+    });
+    text('Cap Digital · scan untuk verifikasi', capX, qy + side + 1, { size: 6, color: gray(0.27), align: 'center', w: capW });
+  }
+
+  /** Nomor halaman, hanya bila lebih dari satu. */
+  function numberPages() {
+    const pages = pdf.getPages();
+    if (pages.length < 2) return;
+    pages.forEach((p, i) => {
+      page = p;
+      text(`${doc.number}  ·  Halaman ${i + 1} dari ${pages.length}`, M.x, PAGE.h - 11 * MM, { size: 7.5, color: gray(0.4), align: 'right', w: W });
+    });
+  }
+
+  if (type === 'invoice') {
+    await drawInvoice();
+    numberPages();
+    return pdf.save();
+  }
+
+  /* ================= Invoice ================= */
+  async function drawInvoice() {
+    const T = await pdf.embedFont(StandardFonts.TimesRoman);
+    const TB = await pdf.embedFont(StandardFonts.TimesRomanBold);
+    const black = rgb(0, 0, 0);
+    const dashed = (x1, x2, top) => page.drawLine({ start: { x: x1, y: PAGE.h - top }, end: { x: x2, y: PAGE.h - top }, thickness: 0.7, color: black, dashArray: [3, 2] });
+    /** Susun beberapa baris teks {t, font, size} yang dibungkus; kembalikan tingginya. */
+    const para = (t, font, size, w) => wrap(t, font, size, w).map((l) => ({ t: l, font, size }));
+    const heightOf = (arr) => arr.reduce((a, l) => a + lh(l.size), 0);
+    const draw = (arr, x, top, o = {}) => {
+      let iy = top;
+      for (const l of arr) {
+        const st = { ...o, font: l.font, size: l.size, color: l.color || black };
+        if (l.num) text(l.num, x, iy, st);
+        text(l.t, x + (l.indent || 0), iy, st);
+        iy += lh(l.size);
+      }
+      return iy - top;
+    };
+
+    // ---- kepala: perusahaan, judul, data invoice ----
+    const leftW = 72 * MM;
+    const metaW = 60 * MM;
+    const metaX = M.x + W - metaW;
+    const logo = await embedLogo(pdf, s.logo_data);
+    let lw = 0;
+    let lhg = 0;
+    if (logo) {
+      const k = Math.min((24 * MM) / logo.width, (20 * MM) / logo.height, 1);
+      lw = logo.width * k;
+      lhg = logo.height * k;
+      page.drawImage(logo, { x: M.x, y: PAGE.h - y - lhg, width: lw, height: lhg });
+    }
+    const coX = M.x + (logo ? lw + 3 * MM : 0);
+    const coW = M.x + leftW - coX;
+    const co = [
+      ...para(s.company_name, TB, 10, coW),
+      ...(s.address ? para(s.address, T, 10, coW) : []),
+      ...(s.phone ? para('Telp : ' + s.phone, T, 10, coW) : []),
+      ...(s.email ? para('Email : ' + s.email, T, 10, coW) : []),
+    ];
+    let ly = y + Math.max(draw(co, coX, y), lhg) + 5 * MM;
+    const custX = M.x + 62;
+    const cust = [
+      ...para(doc.customer_name, TB, 10, M.x + leftW - custX),
+      ...(doc.customer_address ? para(doc.customer_address, T, 10, M.x + leftW - custX) : []),
+      ...(doc.customer_phone ? para('Telp : ' + doc.customer_phone, T, 10, M.x + leftW - custX) : []),
+    ];
+    text('Customer', M.x, ly, { font: T });
+    text(':', custX - 10, ly, { font: T });
+    ly += draw(cust, custX, ly);
+
+    const sp = 5;
+    const title = 'INVOICE';
+    const titleW = width(title, TB, 17) + sp * (title.length - 1);
+    let tx = M.x + leftW + (W - leftW - metaW - titleW) / 2;
+    for (const ch of title) { text(ch, tx, y, { font: TB, size: 17 }); tx += width(ch, TB, 17) + sp; }
+
+    const meta = [['Number', doc.number], ['Inv. Date', tglIndo(doc.issue_date)], ['Payment Term', paymentTerm(doc)],
+      ['Due Date', tglIndo(doc.date2)], ['Currency', 'IDR']];
+    if (doc.status === 'paid') meta.push(['Status', 'LUNAS']);
+    let my = y;
+    for (const [k, v] of meta) {
+      text(k, metaX, my, { font: T });
+      text(':', metaX + 68, my, { font: T });
+      my += draw(para(v, k === 'Status' ? TB : T, 10, metaW - 76), metaX + 76, my);
+    }
+    y = Math.max(ly, my) + 7 * MM;
+
+    // ---- tabel barang ----
+    let cx = M.x;
+    const cols = [['No.', 5, 'center'], ['Product Description', 27, 'left'], ['Qty', 7, 'center'], ['UOM', 7, 'center'], ['Unit Price', 13, 'right'],
+      ['Gross Amt.', 13, 'right'], ['%', 5, 'center'], ['Amount', 10, 'right'], ['Net Amount', 13, 'right']].map(([t, p, a]) => {
+      const col = { t, a, x: cx, w: (p / 100) * W };
+      cx += col.w;
+      return col;
+    });
+    const PX = 2.5;
+    const HEAD_H = 32;
+    const cell = (t, k, top) => {
+      let size = 9;
+      while (size > 5.5 && width(clean(t), T, size) > k.w - PX * 2 + 1) size -= 0.25;
+      text(t, k.x + PX, top, { font: T, size, align: k.a, w: k.w - PX * 2 });
+    };
+    function head() {
+      dashed(M.x, M.x + W, y);
+      cols.forEach((k, i) => cell(k.t, k, y + (i === 6 || i === 7 ? 19 : 11)));
+      const gx = cols[6].x;
+      const gw = cols[6].w + cols[7].w;
+      text('Discount Detail', gx, y + 3, { font: T, size: 9, align: 'center', w: gw });
+      dashed(gx, gx + gw, y + 16);
+      dashed(M.x, M.x + W, y + HEAD_H);
+      y += HEAD_H + 2;
+    }
+    ensure(HEAD_H + 30);
+    head();
+    doc.items.forEach((it, n) => {
+      const dw = cols[1].w - PX * 2;
+      let rest = [...para(it.description, T, 9, dw), ...(it.details ? para(it.details, T, 8, dw).map((l) => ({ ...l, color: gray(0.2) })) : [])];
+      const rowH = heightOf(rest) + 5;
+      if (rowH > room() && rowH <= PAGE.h - M.top - M.bottom - HEAD_H - 2) { dashed(M.x, M.x + W, y); newPage(); head(); }
+      let first = true;
+      while (rest.length) {
+        let take = 0;
+        let h = 5;
+        while (take < rest.length && h + lh(rest[take].size) <= room()) { h += lh(rest[take].size); take++; }
+        if (!take) { dashed(M.x, M.x + W, y); newPage(); head(); continue; }
+        draw(rest.slice(0, take), cols[1].x + PX, y + 2);
+        if (first) {
+          const gross = num(it.qty) * num(it.unit_price);
+          [String(n + 1), null, qtyFmt(it.qty), it.unit || '', rupiah(it.unit_price), rupiah(gross), `${qtyFmt(it.discount_percent)}%`,
+            rupiah(gross - num(it.line_total)), rupiah(it.line_total)].forEach((v, i) => { if (v !== null) cell(v, cols[i], y + 2); });
+          first = false;
+        }
+        y += h;
+        rest = rest.slice(take);
+      }
+    });
+    dashed(M.x, M.x + W, y);
+    y += 5;
+
+    // ---- terbilang & rekening | tanda tangan | total (satu blok) ----
+    const aW = 60 * MM;
+    const cW = 54 * MM;
+    const bX = M.x + aW + 3 * MM;
+    const cX = M.x + W - cW;
+    const bW = cX - 3 * MM - bX;
+    const total = num(doc.total);
+    const wordX = 38;
+    const words = para(inWords(total), T, 10, aW - wordX);
+    const terms = invoiceTerms(doc, s);
+    const remark = [
+      ...(doc.notes ? para(doc.notes, T, 10, aW) : []),
+      ...(terms.length ? para('Syarat & Ketentuan :', T, 9, aW) : []),
+      ...terms.flatMap((t, i) => para(t, T, 9, aW - 14).map((l, j) => ({ ...l, indent: 14, num: j ? '' : `${i + 1}.` }))),
+    ];
+    const bank = [
+      ...(s.bank_name ? para(s.bank_name, T, 10, aW) : []),
+      ...(s.bank_account_no ? para('A/C : ' + s.bank_account_no, T, 10, aW) : []),
+      ...(s.bank_account_holder ? para('A/N : ' + s.bank_account_holder, T, 10, aW) : []),
+    ];
+    const signer = para(s.signer_name || s.company_name, TB, 10, bW);
+    const STAMP_H = 34 * MM;
+    const footH = 10 * MM + lh(8.5);
+    const aH = heightOf(words) + 11 + lh(10) + heightOf(remark) + 17 + (bank.length ? lh(10) + heightOf(bank) : 0);
+    const bH = lh(10) + STAMP_H + heightOf(signer);
+    // catatan yang sangat panjang ditulis terpisah supaya tidak keluar halaman
+    const longRemark = Math.max(aH, bH) + footH > PAGE.h - M.top - M.bottom;
+    if (longRemark) { ensure(lh(10) * 2); text('Remark :', M.x, y, { font: T }); y += lh(10); for (const l of remark) { ensure(lh(l.size)); y += draw([l], M.x, y); } y += 6; }
+    ensure(Math.max(longRemark ? 0 : aH, bH) + footH);
+    const top = y;
+
+    let ay = top;
+    text('Inword :', M.x, ay, { font: T });
+    ay += draw(words, M.x + wordX, ay) + 11;
+    if (!longRemark) {
+      text('Remark :', M.x, ay, { font: T });
+      ay += lh(10);
+      ay += draw(remark, M.x, ay) + 17;
+    }
+    if (bank.length) {
+      text('TRANSFER VIA', M.x, ay, { font: T });
+      hline(M.x, M.x + width('TRANSFER VIA', T, 10), ay + 11, 0.6, black);
+      ay += lh(10);
+      ay += draw(bank, M.x, ay);
+    }
+
+    text('Sincerely,', bX, top, { font: T, align: 'center', w: bW });
+    // materai dan QR berdampingan dengan jarak, supaya QR tetap mudah dipindai
+    const stampTop = top + lh(10) + 3 * MM;
+    const side = 26 * MM;
+    const mtW = total >= MATERAI_MIN ? 22 * MM : 0;
+    const qrW = qrUrl ? side : 0;
+    const gap = mtW && qrW ? 7 * MM : 0;
+    let sx = bX + (bW - mtW - gap - qrW) / 2;
+    if (mtW) {
+      box(sx, stampTop, mtW, side, { borderColor: black, borderWidth: 0.8 });
+      text('Materai', sx, stampTop + side / 2 - 11, { font: T, size: 8, align: 'center', w: mtW });
+      text('Rp10.000', sx, stampTop + side / 2 + 1, { font: T, size: 8, align: 'center', w: mtW });
+      sx += mtW + gap;
+    }
+    if (qrUrl) drawQr(sx, stampTop, sx - 3 * MM, side + 6 * MM);
+    let ny = top + lh(10) + STAMP_H;
+    for (const l of signer) {
+      text(l.t, bX, ny, { font: TB, align: 'center', w: bW });
+      const tw = width(l.t, TB, 10);
+      hline(bX + (bW - tw) / 2, bX + (bW + tw) / 2, ny + 11, 0.7, black);
+      ny += lh(10);
+    }
+
+    let ry = top;
+    const amount = (k, v, font = T) => {
+      // angka sangat besar: label digeser ke kiri, huruf diperkecil bila masih tidak muat
+      let size = 10;
+      while (size > 6 && width(k, font, size) + width(v, font, size) + 8 > cW) size -= 0.25;
+      const labelEnd = Math.min(cX + cW * 0.56, M.x + W - 2 - width(v, font, size) - 6);
+      text(k, cX, ry, { font, size, align: 'right', w: labelEnd - cX });
+      text(v, cX, ry, { font, size, align: 'right', w: cW - 2 });
+      ry += 15;
+    };
+    amount('Gross Total', rupiah(doc.subtotal));
+    amount('Discount Total', rupiah(doc.discount_total));
+    amount(`Tax (PPN ${qtyFmt(doc.tax_percent)}%)`, rupiah(doc.tax_amount));
+    dashed(cX, M.x + W, ry);
+    ry += 3;
+    amount('Net Total', rupiah(total), TB);
+    hline(cX, M.x + W, ry, 0.7, black);
+    hline(cX, M.x + W, ry + 2, 0.7, black);
+
+    y = Math.max(ay, ny, ry) + 10 * MM;
+    ensure(lh(8.5));
+    text(FOOT_NOTE, M.x, y, { font: T, size: 8.5, align: 'center', w: W });
+  }
+
   // ---- kop ----
   const logo = await embedLogo(pdf, s.logo_data);
   let lw = 0;
@@ -167,7 +416,6 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
   // ---- penerima & data dokumen ----
   const metaRows = [['Nomor', doc.number, B], ['Tanggal', tglIndo(doc.issue_date), R]];
   if (doc.date2) metaRows.push([c.date2Label, tglIndo(doc.date2), R]);
-  if (isInv && doc.status === 'paid') metaRows.push(['Status', 'LUNAS', B]);
   const labW = Math.max(...metaRows.map((r) => width(r[0], R, 10))) + 6;
   const valW = Math.min(150, Math.max(...metaRows.map((r) => width(clean(r[1]), r[2], 10))));
   const metaX = M.x + W - (labW + 9 + valW);
@@ -193,8 +441,7 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
     flow(wrap(doc.subject, R, 10, W - hw), M.x + hw, { size: 10 });
     y += 4;
   }
-  flow(['Dengan hormat,', ...wrap(isInv ? 'Berikut kami sampaikan rincian tagihan atas pesanan Anda:'
-    : 'Berikut kami sampaikan penawaran harga dengan rincian sebagai berikut:', R, 10, W)], M.x, { size: 10 });
+  flow(['Dengan hormat,', ...wrap('Berikut kami sampaikan penawaran harga dengan rincian sebagai berikut:', R, 10, W)], M.x, { size: 10 });
   y += 8;
 
   // ---- tabel barang ----
@@ -336,10 +583,10 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
   }
 
   // ---- penutup & tanda tangan (selalu satu halaman) ----
-  const thanks = wrap(`Demikian ${isInv ? 'invoice' : 'surat penawaran'} ini kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.`, R, 9.5, W);
+  const thanks = wrap(`Demikian surat penawaran ini kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.`, R, 9.5, W);
   const signW = 62 * MM;
   const signer = s.signer_name || s.company_name;
-  const left = [{ t: isInv ? 'Diterima oleh,' : 'Disetujui oleh,' }];
+  const left = [{ t: 'Disetujui oleh,' }];
   const right = [
     ...wrap(`${s.city ? s.city + ', ' : ''}${tglIndo(doc.issue_date)}`, R, 9.5, signW).map((t) => ({ t })), { t: 'Hormat kami,' },
   ];
@@ -359,36 +606,9 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
   lines(leftName, M.x, nameY + 4, { ...center, font: B });
   lines(rightName, rightX, nameY + 4, { ...center, font: B });
 
-  if (qrUrl) {
-    const m = qrMatrix(qrUrl);
-    const side = 26 * MM;
-    const quiet = 2;
-    const unit = side / (m.length + quiet * 2);
-    const qx = rightX + (signW - side) / 2;
-    const qy = nameY - side - 12;
-    box(qx, qy, side, side, { color: rgb(1, 1, 1) });
-    m.forEach((row, r) => {
-      // gabungkan modul gelap yang bersebelahan agar tidak muncul garis halus
-      for (let i = 0; i < row.length; i++) {
-        if (!row[i]) continue;
-        let j = i;
-        while (j + 1 < row.length && row[j + 1]) j++;
-        box(qx + (i + quiet) * unit, qy + (r + quiet) * unit, (j - i + 1) * unit, unit + 0.02, { color: rgb(0, 0, 0) });
-        i = j;
-      }
-    });
-    text('Cap Digital · scan untuk verifikasi', rightX, qy + side + 1, { size: 6.5, color: gray(0.27), align: 'center', w: signW });
-  }
+  if (qrUrl) drawQr(rightX + (signW - 26 * MM) / 2, nameY - 26 * MM - 12, rightX, signW);
 
-  // ---- nomor halaman (hanya bila lebih dari satu) ----
-  const pages = pdf.getPages();
-  if (pages.length > 1) {
-    pages.forEach((p, i) => {
-      page = p;
-      text(`${doc.number}  ·  Halaman ${i + 1} dari ${pages.length}`, M.x, PAGE.h - 11 * MM, { size: 7.5, color: gray(0.4), align: 'right', w: W });
-    });
-  }
-
+  numberPages();
   return pdf.save();
 }
 
