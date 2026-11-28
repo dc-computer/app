@@ -181,11 +181,14 @@ select.status.info { background: var(--info-bg); color: var(--info); }
 /* ---------- Invoice ---------- */
 .sheet.inv { font-family: "Times New Roman", "Liberation Serif", Times, serif; color: #000; }
 .sheet.inv table { border-collapse: collapse; }
-.sheet .inv-top { display: grid; grid-template-columns: 72mm 1fr 60mm; gap: 3mm; align-items: start; }
-.sheet .inv-co { display: flex; gap: 3mm; overflow-wrap: anywhere; }
+.sheet .inv-top { display: grid; grid-template-columns: 80mm 1fr 60mm; gap: 3mm; align-items: start; }
+.sheet .inv-co { display: flex; align-items: center; gap: 3mm; overflow-wrap: anywhere; }
+.sheet .inv-co b { font-size: 13pt; }
+.sheet .inv-info { margin-top: 2mm; font-size: 9.5pt; overflow-wrap: anywhere; }
+.sheet .inv-info.small, .sheet .inv-cust-info.small { font-size: 8pt; }
 .sheet .inv-co .logo { max-width: 24mm; max-height: 20mm; object-fit: contain; flex: none; }
 .sheet .inv-cust { display: grid; grid-template-columns: auto auto 1fr; gap: 3mm; margin-top: 5mm; }
-.sheet.inv h1 { font-size: 17pt; letter-spacing: 5px; text-align: center; }
+.sheet.inv h1 { font-size: 17pt; letter-spacing: 3px; text-align: center; }
 .sheet .inv-meta td { padding: 0 1.5mm 0 0; vertical-align: top; }
 .sheet .inv-items { width: 100%; table-layout: fixed; margin-top: 7mm; font-size: 9pt; border-top: 1px dashed #000; }
 .sheet .inv-items th { font-weight: 400; padding: 1.2mm 1mm; vertical-align: middle; }
@@ -200,16 +203,18 @@ select.status.info { background: var(--info-bg); color: var(--info); }
 .sheet .inv-items td { padding: 1mm; vertical-align: top; overflow-wrap: anywhere; }
 .sheet .inv-items td.r { font-size: 8.5pt; }
 .sheet .inv-spec { font-size: 8pt; color: #333; }
-.sheet .inv-bottom { display: grid; grid-template-columns: 60mm 1fr 54mm; gap: 3mm; margin-top: 2mm; break-inside: avoid; page-break-inside: avoid; }
+.sheet .inv-bottom { display: grid; grid-template-columns: 1fr 56mm; gap: 12mm; margin-top: 2mm; break-inside: avoid; page-break-inside: avoid; }
 .sheet .inv-words { display: flex; gap: 2mm; } .sheet .inv-words span:first-child { white-space: nowrap; }
 .sheet .inv-remark { margin: 4mm 0 6mm; overflow-wrap: anywhere; }
-.sheet .inv-terms { margin-top: 1.5mm; font-size: 9pt; } .sheet .inv-terms ol { margin: 0; padding-left: 4.5mm; }
-.sheet .inv-sign { text-align: center; }
-.sheet .inv-stamps { min-height: 34mm; display: flex; align-items: center; justify-content: center; gap: 7mm; }
+.sheet .inv-remark.small { font-size: 8.5pt; } .sheet .inv-remark.small .inv-terms { font-size: 7.5pt; }
+.sheet .inv-bank { font-size: 8pt; }
+.sheet .inv-terms { font-size: 9pt; } .sheet .inv-terms ol { margin: 0; padding-left: 4.5mm; }
+.sheet .inv-sign { text-align: center; margin-top: 6mm; }
+.sheet .inv-stamps { min-height: 34mm; display: flex; align-items: center; justify-content: center; gap: 5mm; }
 .sheet .materai { width: 22mm; height: 26mm; flex: none; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-size: 8pt; line-height: 1.3; }
 .sheet .inv-stamps .qr-wrap { flex: none; } .sheet .inv-stamps .qr-cap { width: 26mm; font-size: 6pt; }
 .sheet .inv-signer { font-weight: 700; text-decoration: underline; }
-.sheet .inv-totals { width: 100%; align-self: start; }
+.sheet .inv-totals { width: 100%; }
 .sheet .inv-totals td { padding: .6mm 1mm; }
 .sheet .inv-totals .net td { border-top: 1px dashed #000; border-bottom: 3px double #000; font-weight: 700; padding: 1mm; }
 .sheet .inv-foot { text-align: center; font-size: 8.5pt; margin-top: 10mm; break-inside: avoid; }

@@ -187,8 +187,15 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
       return iy - top;
     };
 
+    /** Perkecil huruf bertahap sampai teks muat dalam jumlah baris yang diinginkan. */
+    const fit = (build, max, min, maxLines) => {
+      let size = max;
+      while (size > min && build(size).length > maxLines) size -= 0.25;
+      return build(size);
+    };
+
     // ---- kepala: perusahaan, judul, data invoice ----
-    const leftW = 72 * MM;
+    const leftW = 80 * MM;
     const metaW = 60 * MM;
     const metaX = M.x + W - metaW;
     const logo = await embedLogo(pdf, s.logo_data);
@@ -201,25 +208,30 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
       page.drawImage(logo, { x: M.x, y: PAGE.h - y - lhg, width: lw, height: lhg });
     }
     const coX = M.x + (logo ? lw + 3 * MM : 0);
-    const coW = M.x + leftW - coX;
-    const co = [
-      ...para(s.company_name, TB, 10, coW),
-      ...(s.address ? para(s.address, T, 10, coW) : []),
-      ...(s.phone ? para('Telp : ' + s.phone, T, 10, coW) : []),
-      ...(s.email ? para('Email : ' + s.email, T, 10, coW) : []),
-    ];
-    let ly = y + Math.max(draw(co, coX, y), lhg) + 5 * MM;
+    const name = para(s.company_name, TB, 13, M.x + leftW - coX);
+    const headH = Math.max(lhg, heightOf(name));
+    draw(name, coX, y + Math.max(0, (headH - heightOf(name)) / 2));
+    const info = fit((size) => [
+      ...(s.address ? para(s.address, T, size, leftW) : []),
+      ...(s.phone ? para('Telp : ' + s.phone, T, size, leftW) : []),
+      ...(s.email ? para('Email : ' + s.email, T, size, leftW) : []),
+    ], 9.5, 8, 5);
+    let ly = y + headH + 2 * MM;
+    ly += draw(info, M.x, ly) + 4 * MM;
     const custX = M.x + 62;
+    const custW = M.x + leftW - custX;
     const cust = [
-      ...para(doc.customer_name, TB, 10, M.x + leftW - custX),
-      ...(doc.customer_address ? para(doc.customer_address, T, 10, M.x + leftW - custX) : []),
-      ...(doc.customer_phone ? para('Telp : ' + doc.customer_phone, T, 10, M.x + leftW - custX) : []),
+      ...para(doc.customer_name, TB, 10, custW),
+      ...fit((size) => [
+        ...(doc.customer_address ? para(doc.customer_address, T, size, custW) : []),
+        ...(doc.customer_phone ? para('Telp : ' + doc.customer_phone, T, size, custW) : []),
+      ], 10, 8, 4),
     ];
     text('Customer', M.x, ly, { font: T });
     text(':', custX - 10, ly, { font: T });
     ly += draw(cust, custX, ly);
 
-    const sp = 5;
+    const sp = 3;
     const title = 'INVOICE';
     const titleW = width(title, TB, 17) + sp * (title.length - 1);
     let tx = M.x + leftW + (W - leftW - metaW - titleW) / 2;
@@ -288,31 +300,29 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
     dashed(M.x, M.x + W, y);
     y += 5;
 
-    // ---- terbilang & rekening | tanda tangan | total (satu blok) ----
-    const aW = 60 * MM;
-    const cW = 54 * MM;
-    const bX = M.x + aW + 3 * MM;
+    // ---- kiri: terbilang, remark, rekening | kanan: total lalu tanda tangan (satu blok) ----
+    const aW = 112 * MM;
+    const cW = 56 * MM;
     const cX = M.x + W - cW;
-    const bW = cX - 3 * MM - bX;
     const total = num(doc.total);
     const wordX = 38;
     const words = para(inWords(total), T, 10, aW - wordX);
     const terms = invoiceTerms(doc, s);
-    const remark = [
-      ...(doc.notes ? para(doc.notes, T, 10, aW) : []),
-      ...(terms.length ? para('Syarat & Ketentuan :', T, 9, aW) : []),
-      ...terms.flatMap((t, i) => para(t, T, 9, aW - 14).map((l, j) => ({ ...l, indent: 14, num: j ? '' : `${i + 1}.` }))),
-    ];
+    const remark = fit((size) => [
+      ...(doc.notes ? para(doc.notes, T, size + 0.5, aW) : []),
+      ...(terms.length ? para('Syarat & Ketentuan :', TB, size, aW) : []),
+      ...terms.flatMap((t, i) => para(t, T, size, aW - 12).map((l, j) => ({ ...l, indent: 12, num: j ? '' : `${i + 1}.` }))),
+    ], 9, 7.5, 9);
     const bank = [
-      ...(s.bank_name ? para(s.bank_name, T, 10, aW) : []),
-      ...(s.bank_account_no ? para('A/C : ' + s.bank_account_no, T, 10, aW) : []),
-      ...(s.bank_account_holder ? para('A/N : ' + s.bank_account_holder, T, 10, aW) : []),
+      ...(s.bank_name ? para(s.bank_name, T, 8, aW) : []),
+      ...(s.bank_account_no ? para('A/C : ' + s.bank_account_no, T, 8, aW) : []),
+      ...(s.bank_account_holder ? para('A/N : ' + s.bank_account_holder, T, 8, aW) : []),
     ];
-    const signer = para(s.signer_name || s.company_name, TB, 10, bW);
+    const signer = para(s.signer_name || s.company_name, TB, 10, cW);
     const STAMP_H = 34 * MM;
     const footH = 10 * MM + lh(8.5);
     const aH = heightOf(words) + 11 + lh(10) + heightOf(remark) + 17 + (bank.length ? lh(10) + heightOf(bank) : 0);
-    const bH = lh(10) + STAMP_H + heightOf(signer);
+    const bH = 4 * 15 + 3 + 6 * MM + lh(10) + STAMP_H + heightOf(signer);
     // catatan yang sangat panjang ditulis terpisah supaya tidak keluar halaman
     const longRemark = Math.max(aH, bH) + footH > PAGE.h - M.top - M.bottom;
     if (longRemark) { ensure(lh(10) * 2); text('Remark :', M.x, y, { font: T }); y += lh(10); for (const l of remark) { ensure(lh(l.size)); y += draw([l], M.x, y); } y += 6; }
@@ -328,33 +338,10 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
       ay += draw(remark, M.x, ay) + 17;
     }
     if (bank.length) {
-      text('TRANSFER VIA', M.x, ay, { font: T });
-      hline(M.x, M.x + width('TRANSFER VIA', T, 10), ay + 11, 0.6, black);
-      ay += lh(10);
+      text('TRANSFER VIA', M.x, ay, { font: T, size: 8 });
+      hline(M.x, M.x + width('TRANSFER VIA', T, 8), ay + 9, 0.5, black);
+      ay += lh(8);
       ay += draw(bank, M.x, ay);
-    }
-
-    text('Sincerely,', bX, top, { font: T, align: 'center', w: bW });
-    // materai dan QR berdampingan dengan jarak, supaya QR tetap mudah dipindai
-    const stampTop = top + lh(10) + 3 * MM;
-    const side = 26 * MM;
-    const mtW = total >= MATERAI_MIN ? 22 * MM : 0;
-    const qrW = qrUrl ? side : 0;
-    const gap = mtW && qrW ? 7 * MM : 0;
-    let sx = bX + (bW - mtW - gap - qrW) / 2;
-    if (mtW) {
-      box(sx, stampTop, mtW, side, { borderColor: black, borderWidth: 0.8 });
-      text('Materai', sx, stampTop + side / 2 - 11, { font: T, size: 8, align: 'center', w: mtW });
-      text('Rp10.000', sx, stampTop + side / 2 + 1, { font: T, size: 8, align: 'center', w: mtW });
-      sx += mtW + gap;
-    }
-    if (qrUrl) drawQr(sx, stampTop, sx - 3 * MM, side + 6 * MM);
-    let ny = top + lh(10) + STAMP_H;
-    for (const l of signer) {
-      text(l.t, bX, ny, { font: TB, align: 'center', w: bW });
-      const tw = width(l.t, TB, 10);
-      hline(bX + (bW - tw) / 2, bX + (bW + tw) / 2, ny + 11, 0.7, black);
-      ny += lh(10);
     }
 
     let ry = top;
@@ -375,6 +362,30 @@ export async function buildPdf({ doc, s, type, qrUrl }) {
     amount('Net Total', rupiah(total), TB);
     hline(cX, M.x + W, ry, 0.7, black);
     hline(cX, M.x + W, ry + 2, 0.7, black);
+
+    const signTop = ry + 6 * MM;
+    text('Sincerely,', cX, signTop, { font: T, align: 'center', w: cW });
+    // materai dan QR berdampingan dengan jarak, supaya QR tetap mudah dipindai
+    const stampTop = signTop + lh(10) + 3 * MM;
+    const side = 26 * MM;
+    const mtW = total >= MATERAI_MIN ? 22 * MM : 0;
+    const qrW = qrUrl ? side : 0;
+    const gap = mtW && qrW ? 5 * MM : 0;
+    let sx = cX + (cW - mtW - gap - qrW) / 2;
+    if (mtW) {
+      box(sx, stampTop, mtW, side, { borderColor: black, borderWidth: 0.8 });
+      text('Materai', sx, stampTop + side / 2 - 11, { font: T, size: 8, align: 'center', w: mtW });
+      text('Rp10.000', sx, stampTop + side / 2 + 1, { font: T, size: 8, align: 'center', w: mtW });
+      sx += mtW + gap;
+    }
+    if (qrUrl) drawQr(sx, stampTop, sx - 1.5 * MM, side + 3 * MM);
+    let ny = signTop + lh(10) + STAMP_H;
+    for (const l of signer) {
+      text(l.t, cX, ny, { font: TB, align: 'center', w: cW });
+      const tw = width(l.t, TB, 10);
+      hline(cX + (cW - tw) / 2, cX + (cW + tw) / 2, ny + 11, 0.7, black);
+      ny += lh(10);
+    }
 
     y = Math.max(ay, ny, ry) + 10 * MM;
     ensure(lh(8.5));

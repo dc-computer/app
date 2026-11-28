@@ -32,11 +32,19 @@ export const inWords = (total) => `${terbilang(total)} rupiah`.replace(/(^|\s)\S
 export const invoiceTerms = (doc, s) =>
   String(doc.terms || s.terms || '').split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
 
+/** Perkiraan jumlah baris, untuk memperkecil huruf bila teks panjang. */
+const estLines = (texts, perLine) => texts.filter(Boolean).join('\n').split(/\r?\n/)
+  .reduce((a, t) => a + Math.max(1, Math.ceil(t.length / perLine)), 0);
+
 /** Lembar invoice. */
 function invoiceHtml({ doc, s, qrUrl }) {
   const total = num(doc.total);
   const hasBank = s.bank_name || s.bank_account_no || s.bank_account_holder;
   const terms = invoiceTerms(doc, s);
+  const small = (texts, perLine, maxLines) => (estLines(texts, perLine) > maxLines ? ' small' : '');
+  const infoSize = small([s.address, s.phone, s.email], 55, 5);
+  const custSize = small([doc.customer_address, doc.customer_phone], 45, 4);
+  const remarkSize = small([doc.notes, ...terms], 80, 9);
   const row = (k, v) => `<tr><td>${k}</td><td>:</td><td>${v}</td></tr>`;
   const sum = (k, v) => `<tr><td class="r">${k}</td><td class="r">${v}</td></tr>`;
   return `<div class="sheet-scroll"><div class="sheet inv">
@@ -44,14 +52,16 @@ function invoiceHtml({ doc, s, qrUrl }) {
       <div>
         <div class="inv-co">
           ${s.logo_data ? `<img class="logo" src="${s.logo_data}" alt="">` : ''}
-          <div><b>${esc(s.company_name)}</b>
-            ${s.address ? `<div>${nl2br(s.address)}</div>` : ''}
-            ${s.phone ? `<div>Telp : ${esc(s.phone)}</div>` : ''}
-            ${s.email ? `<div>Email : ${esc(s.email)}</div>` : ''}</div>
+          <b>${esc(s.company_name)}</b>
         </div>
-        <div class="inv-cust"><div>Customer</div><div>:</div><div><b>${esc(doc.customer_name)}</b>
+        <div class="inv-info${infoSize}">
+          ${s.address ? `<div>${nl2br(s.address)}</div>` : ''}
+          ${s.phone ? `<div>Telp : ${esc(s.phone)}</div>` : ''}
+          ${s.email ? `<div>Email : ${esc(s.email)}</div>` : ''}
+        </div>
+        <div class="inv-cust"><div>Customer</div><div>:</div><div><b>${esc(doc.customer_name)}</b><div class="inv-cust-info${custSize}">
           ${doc.customer_address ? `<div>${nl2br(doc.customer_address)}</div>` : ''}
-          ${doc.customer_phone ? `<div>Telp : ${esc(doc.customer_phone)}</div>` : ''}</div></div>
+          ${doc.customer_phone ? `<div>Telp : ${esc(doc.customer_phone)}</div>` : ''}</div></div></div>
       </div>
       <h1>INVOICE</h1>
       <table class="inv-meta">
@@ -87,13 +97,20 @@ function invoiceHtml({ doc, s, qrUrl }) {
     <div class="inv-bottom">
       <div>
         <div class="inv-words"><span>Inword :</span><span>${esc(inWords(total))}</span></div>
-        <div class="inv-remark">Remark : ${doc.notes ? `<div>${nl2br(doc.notes)}</div>` : ''}
+        <div class="inv-remark${remarkSize}">Remark : ${doc.notes ? `<div>${nl2br(doc.notes)}</div>` : ''}
           ${terms.length ? `<div class="inv-terms">Syarat &amp; Ketentuan :<ol>${terms.map((t) => `<li>${esc(t)}</li>`).join('')}</ol></div>` : ''}</div>
-        ${hasBank ? `<div><u>TRANSFER VIA</u>
+        ${hasBank ? `<div class="inv-bank"><u>TRANSFER VIA</u>
           <div>${esc(s.bank_name)}</div>
           ${s.bank_account_no ? `<div>A/C : ${esc(s.bank_account_no)}</div>` : ''}
           ${s.bank_account_holder ? `<div>A/N : ${esc(s.bank_account_holder)}</div>` : ''}</div>` : ''}
       </div>
+      <div class="inv-right">
+      <table class="inv-totals">
+        ${sum('Gross Total', rupiah(doc.subtotal))}
+        ${sum('Discount Total', rupiah(doc.discount_total))}
+        ${sum(`Tax (PPN ${qtyFmt(doc.tax_percent)}%)`, rupiah(doc.tax_amount))}
+        <tr class="net"><td class="r">Net Total</td><td class="r">${rupiah(total)}</td></tr>
+      </table>
       <div class="inv-sign">
         <div>Sincerely,</div>
         <div class="inv-stamps">
@@ -102,12 +119,7 @@ function invoiceHtml({ doc, s, qrUrl }) {
         </div>
         <div class="inv-signer">${esc(s.signer_name || s.company_name)}</div>
       </div>
-      <table class="inv-totals">
-        ${sum('Gross Total', rupiah(doc.subtotal))}
-        ${sum('Discount Total', rupiah(doc.discount_total))}
-        ${sum(`Tax (PPN ${qtyFmt(doc.tax_percent)}%)`, rupiah(doc.tax_amount))}
-        <tr class="net"><td class="r">Net Total</td><td class="r">${rupiah(total)}</td></tr>
-      </table>
+      </div>
     </div>
     <div class="inv-foot">${FOOT_NOTE}</div>
   </div></div>`;
